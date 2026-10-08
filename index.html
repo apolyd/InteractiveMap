@@ -14,13 +14,183 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #2b2b2b;
         }
 
+        /* ===== LANDSCAPE (default) ===== */
         #map {
-            width: 100vw;
-            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            transition: left 0.3s ease, top 0.3s ease;
         }
 
+        #map.sidebar-open {
+            left: 50vw;
+        }
+
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: -50vw;
+            width: 50vw;
+            height: 100vh;
+            background: #1a1a2e;
+            color: #ffffff;
+            z-index: 1000;
+            transition: left 0.3s ease, top 0.3s ease;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #sidebar.open {
+            left: 0;
+        }
+
+        #sidebar-toggle {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            z-index: 1001;
+            width: 24px;
+            height: 48px;
+            background: #2a2a4a;
+            border: none;
+            border-radius: 0 6px 6px 0;
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: left 0.3s ease, top 0.3s ease;
+        }
+
+        #sidebar-toggle.open {
+            left: 50vw;
+        }
+
+        #sidebar-toggle:hover {
+            background: #3a3a5a;
+        }
+
+        /* ===== PORTRAIT ===== */
+        @media (orientation: portrait) {
+            #map.sidebar-open {
+                left: 0;
+                top: 50vh;
+            }
+
+            #sidebar {
+                top: -50vh;
+                left: 0;
+                width: 100vw;
+                height: 50vh;
+            }
+
+            #sidebar.open {
+                top: 0;
+                left: 0;
+            }
+
+            #sidebar-toggle {
+                top: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 48px;
+                height: 24px;
+                border-radius: 0 0 6px 6px;
+            }
+
+            #sidebar-toggle.open {
+                top: 50vh;
+                left: 50%;
+            }
+        }
+
+        /* Sidebar content */
+        .sidebar-header {
+            padding: 24px 24px 0 24px;
+        }
+
+        .poi-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: #aaaaaa;
+            margin-bottom: 4px;
+        }
+
+        .poi-dot {
+            width: 12px;
+            height: 12px;
+            background: #00ff00;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .sidebar-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #00ff00;
+            margin-bottom: 16px;
+        }
+
+        /* 3D viewer / image area */
+        .sidebar-viewer {
+            width: 100%;
+            padding: 0 24px;
+            margin-bottom: 16px;
+        }
+
+        .sidebar-viewer iframe {
+            width: 100%;
+            height: 280px;
+            border: none;
+            border-radius: 4px;
+            background: #111;
+        }
+
+        .sidebar-viewer .no-model {
+            width: 100%;
+            height: 280px;
+            background: #111;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 14px;
+        }
+
+        /* Info text */
+        .sidebar-body {
+            padding: 0 24px 24px 24px;
+        }
+
+        .sidebar-source {
+            font-size: 11px;
+            color: #888888;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .sidebar-description {
+            font-size: 14px;
+            color: #cccccc;
+            line-height: 1.7;
+        }
+
+        /* Pin markers */
         .custom-marker {
             width: 20px;
             height: 20px;
@@ -35,58 +205,47 @@
             transform: scale(1.3);
         }
 
-        .leaflet-popup-content-wrapper {
-            background: #1a1a2e;
-            color: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-        }
-
-        .leaflet-popup-tip {
-            background: #1a1a2e;
-        }
-
-        .leaflet-popup-content {
-            margin: 12px 16px;
-            font-size: 14px;
-            line-height: 1.5;
-            width: 350px;
-        }
-
-        .leaflet-popup-content iframe {
-            width: 100%;
-            height: 250px;
-            border: none;
-            border-radius: 4px;
-            margin-top: 8px;
-        }
-
-        .leaflet-popup-content h3 {
-            margin: 0 0 8px 0;
-            color: #ff69b4;
-            font-size: 16px;
-        }
-
-        .leaflet-popup-content p {
-            margin: 0;
-            color: #cccccc;
+        .custom-marker.active {
+            background: #ffff00;
+            border-color: #ff69b4;
+            transform: scale(1.3);
         }
     </style>
 </head>
 <body>
+    <!-- Sidebar panel -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="poi-label">
+                Point of Interest <span class="poi-dot"></span>
+            </div>
+            <div class="sidebar-title" id="sidebar-title"></div>
+        </div>
+        <div class="sidebar-viewer" id="sidebar-viewer"></div>
+        <div class="sidebar-body">
+            <div class="sidebar-source" id="sidebar-source"></div>
+            <div class="sidebar-description" id="sidebar-description"></div>
+        </div>
+    </div>
+
+    <!-- Toggle button -->
+    <button id="sidebar-toggle" title="Toggle panel">&#9654;</button>
+
     <div id="map"></div>
 
+    <script src="config.js"></script>
+    <script src="locations.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Initialize the map centered on Nicosia, Cyprus (matching the screenshot)
+        // Initialize the map centered on Nicosia, Cyprus
         const map = L.map('map', {
             center: [35.175, 33.365],
             zoom: 14,
             zoomControl: true
         });
 
-        // Dark map tiles (CartoDB Dark Matter) - matches the screenshot style
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        // Dark map tiles (CartoDB Dark Matter)
+        L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CONFIG.CARTO_API_KEY}`, {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 19
@@ -96,71 +255,123 @@
         const pinIcon = L.divIcon({
             className: 'custom-marker',
             iconSize: [20, 20],
-            iconAnchor: [10, 10],
-            popupAnchor: [0, -12]
+            iconAnchor: [10, 10]
         });
 
-        // Sample locations with info - replace these with your own data
-        const locations = [
-            {
-                lat: 35.1753,
-                lng: 33.3620,
-                title: "Dionysiou Solomou",
-                description: "3D model of Dionysiou Solomou.",
-                sketchfabId: "07cc9b7db3b44ca38a96c8f6b5f5e7c4"
-            },
-            {
-                lat: 35.1720,
-                lng: 33.3580,
-                title: "Location 2",
-                description: "Another interesting place to visit.",
-                sketchfabId: "f4edc918eb134930b93ab36eb0edf777"
-            },
-            {
-                lat: 35.1780,
-                lng: 33.3650,
-                title: "Location 3",
-                description: "Historical site with cultural significance.",
-                sketchfabId: "30f43907f7814582b5dacbbadbabbe6d"
-            },
-            {
-                lat: 35.1700,
-                lng: 33.3700,
-                title: "Location 4",
-                description: "A modern landmark in the city.",
-                sketchfabId: "9b55c1e8c1264006b21019f34ce016ac"
-            },
-            {
-                lat: 35.1740,
-                lng: 33.3550,
-                title: "Location 5",
-                description: "Popular gathering spot for locals.",
-                sketchfabId: "af096aa7ca934f84b6d64c89a8e312d4"
-            },
-            {
-                lat: 35.1690,
-                lng: 33.3630,
-                title: "Location 6",
-                description: "Architectural gem from the colonial era.",
-                sketchfabId: "6c123dc391cc45858e4efa7ffddadbc1"
-            },
-            {
-                lat: 35.1760,
-                lng: 33.3700,
-                title: "Location 7",
-                description: "Recently restored monument.",
-                sketchfabId: "2593a49465a74ea09c43f26e53957708"
-            }
-        ];
+        // Sidebar elements
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebarTitle = document.getElementById('sidebar-title');
+        const sidebarViewer = document.getElementById('sidebar-viewer');
+        const sidebarSource = document.getElementById('sidebar-source');
+        const sidebarDescription = document.getElementById('sidebar-description');
+        const mapEl = document.getElementById('map');
 
-        // Add markers to the map
+        let activeMarkerEl = null;
+
+        function isPortrait() {
+            return window.innerHeight > window.innerWidth;
+        }
+
+        // Return the correct arrow characters for the current orientation
+        function getArrows() {
+            return isPortrait()
+                ? { open: '&#9650;', close: '&#9660;' }   // ▲ ▼
+                : { open: '&#9664;', close: '&#9654;' };   // ◀ ▶
+        }
+
+        function openSidebar(loc) {
+            // Set title
+            sidebarTitle.textContent = loc.title;
+
+            // Set 3D viewer or placeholder
+            if (loc.sketchfabId) {
+                sidebarViewer.innerHTML = `<iframe title="${loc.title}" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking" src="https://sketchfab.com/models/${loc.sketchfabId}/embed"></iframe>`;
+            } else {
+                sidebarViewer.innerHTML = `<div class="no-model">No 3D model available</div>`;
+            }
+
+            // Set source (you can customise per location)
+            sidebarSource.textContent = loc.source || '';
+
+            // Set description
+            sidebarDescription.textContent = loc.description;
+
+            // Open sidebar – smoothly keep the same visual center
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            sidebar.classList.add('open');
+            sidebarToggle.classList.add('open');
+            sidebarToggle.innerHTML = getArrows().open;
+            mapEl.classList.add('sidebar-open');
+            smoothInvalidate(center, zoom);
+        }
+
+        function closeSidebar() {
+            // Capture center before closing
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+
+            sidebar.classList.remove('open');
+            sidebarToggle.classList.remove('open');
+            sidebarToggle.innerHTML = getArrows().close;
+            mapEl.classList.remove('sidebar-open');
+
+            // Remove active state from marker
+            if (activeMarkerEl) {
+                activeMarkerEl.classList.remove('active');
+                activeMarkerEl = null;
+            }
+            smoothInvalidate(center, zoom);
+        }
+
+        // Continuously invalidate map size during the CSS transition
+        // so the center stays locked and the view lerps smoothly
+        function smoothInvalidate(center, zoom) {
+            const duration = 350;
+            const start = performance.now();
+            function tick() {
+                map.invalidateSize({ animate: false });
+                map.setView(center, zoom, { animate: false });
+                if (performance.now() - start < duration) {
+                    requestAnimationFrame(tick);
+                }
+            }
+            requestAnimationFrame(tick);
+        }
+
+        sidebarToggle.addEventListener('click', () => {
+            if (sidebar.classList.contains('open')) {
+                closeSidebar();
+            }
+        });
+
+        // Update toggle arrow and re-center map on orientation change
+        window.addEventListener('resize', () => {
+            const arrows = getArrows();
+            sidebarToggle.innerHTML = sidebar.classList.contains('open')
+                ? arrows.open : arrows.close;
+            map.invalidateSize();
+        });
+
+        // Add markers to the map (locations loaded from locations.js)
         locations.forEach(loc => {
             const marker = L.marker([loc.lat, loc.lng], { icon: pinIcon }).addTo(map);
-            let popupContent = `<h3>${loc.title}</h3><p>${loc.description}</p>`;
-            if (loc.sketchfabId) {
-                popupContent += `<iframe title="${loc.title}" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking" src="https://sketchfab.com/models/${loc.sketchfabId}/embed"></iframe>`;
-            }
-            marker.bindPopup(popupContent, { maxWidth: 400 });
+
+            marker.on('click', () => {
+                // Remove previous active state
+                if (activeMarkerEl) {
+                    activeMarkerEl.classList.remove('active');
+                }
+
+                // Set new active marker
+                activeMarkerEl = marker.getElement();
+                if (activeMarkerEl) {
+                    activeMarkerEl.classList.add('active');
+                }
+
+                openSidebar(loc);
+            });
         });
     </script>
 </body>
