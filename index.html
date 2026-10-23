@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Website</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #2b2b2b;
+        }
+
+        /* ===== LANDSCAPE (default) ===== */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            transition: left 0.3s ease, top 0.3s ease;
+        }
+
+        #map.sidebar-open {
+            left: 50vw;
+        }
+
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: -50vw;
+            width: 50vw;
+            height: 100vh;
+            background: #1a1a2e;
+            color: #ffffff;
+            z-index: 1000;
+            transition: left 0.3s ease, top 0.3s ease;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #sidebar.open {
+            left: 0;
+        }
+
+        #sidebar-toggle {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            z-index: 1001;
+            width: 24px;
+            height: 48px;
+            background: #2a2a4a;
+            border: none;
+            border-radius: 0 6px 6px 0;
+            color: #ffffff;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: left 0.3s ease, top 0.3s ease;
+        }
+
+        #sidebar-toggle.visible {
+            display: flex;
+        }
+
+        #sidebar-toggle.open {
+            left: 50vw;
+        }
+
+        #sidebar-toggle:hover {
+            background: #3a3a5a;
+        }
+
+        /* ===== PORTRAIT ===== */
+        @media (orientation: portrait) {
+            #map.sidebar-open {
+                left: 0;
+                top: 50vh;
+            }
+
+            #sidebar {
+                top: -50vh;
+                left: 0;
+                width: 100vw;
+                height: 50vh;
+            }
+
+            #sidebar.open {
+                top: 0;
+                left: 0;
+            }
+
+            #sidebar-toggle {
+                top: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 48px;
+                height: 24px;
+                border-radius: 0 0 6px 6px;
+            }
+
+            #sidebar-toggle.open {
+                top: 50vh;
+                left: 50%;
+            }
+        }
+
+        /* Sidebar content */
+        .sidebar-header {
+            padding: 24px 24px 0 24px;
+        }
+
+        .poi-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: #aaaaaa;
+            margin-bottom: 4px;
+        }
+
+        .poi-dot {
+            width: 12px;
+            height: 12px;
+            background: #00ff00;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .sidebar-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #00ff00;
+            margin-bottom: 16px;
+        }
+
+        /* 3D viewer / image area */
+        .sidebar-viewer {
+            width: 100%;
+            padding: 0 24px;
+            margin-bottom: 16px;
+        }
+
+        .sidebar-viewer iframe {
+            width: 100%;
+            height: 280px;
+            border: none;
+            border-radius: 4px;
+            background: #111;
+        }
+
+        .sidebar-viewer .no-model {
+            width: 100%;
+            height: 280px;
+            background: #111;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 14px;
+        }
+
+        /* Info text */
+        .sidebar-body {
+            padding: 0 24px 24px 24px;
+        }
+
+        .sidebar-source {
+            font-size: 11px;
+            color: #888888;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .sidebar-description {
+            font-size: 14px;
+            color: #cccccc;
+            line-height: 1.7;
+        }
+
+        /* Pin markers – teardrop shape */
+        .pin-marker {
+            width: 30px;
+            height: 42px;
+            position: relative;
+            cursor: pointer;
+            will-change: transform;
+        }
+
+        .pin-marker svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .pin-marker:hover {
+            transform: scale(1.2);
+        }
+
+        .pin-marker.active {
+            transform: scale(1.2);
+        }
+
+        .pin-marker.active .pin-fill {
+            fill: #ffff00;
+        }
+
+        .pin-marker.active .pin-stroke {
+            stroke: #ff69b4;
+        }
+
+        /* Image markers – shown at high zoom */
+        .image-marker {
+            cursor: pointer;
+            will-change: transform;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.7); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        .image-marker img {
+            width: 128px;
+            height: 128px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 3px solid #ff69b4;
+            display: block;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+
+        .image-marker:hover {
+            transform: scale(1.15);
+        }
+
+        .image-marker.active img {
+            border-color: #ffff00;
+        }
+
+        /* Smooth marker repositioning after zoom */
+        .leaflet-marker-icon.smooth-move {
+            transition: transform 0.35s ease !important;
+        }
+
+        /* Reset view button */
+        .reset-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            z-index: 1000;
+            background: #ffffff;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            width: 34px;
+            height: 34px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #333;
+            line-height: 1;
+        }
+
+        .reset-btn:hover {
+            background: #f4f4f4;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar panel -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="poi-label">
+                Point of Interest <span class="poi-dot"></span>
+            </div>
+            <div class="sidebar-title" id="sidebar-title"></div>
+        </div>
+        <div class="sidebar-viewer" id="sidebar-viewer"></div>
+        <div class="sidebar-body">
+            <div class="sidebar-source" id="sidebar-source"></div>
+            <div class="sidebar-description" id="sidebar-description"></div>
+        </div>
+    </div>
+
+    <!-- Toggle button -->
+    <button id="sidebar-toggle" title="Toggle panel">&#9654;</button>
+
+    <div id="map">
+        <button class="reset-btn" id="reset-view" title="Show all pins">&#8962;</button>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="locations.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('map', {
+            zoomControl: true,
+            minZoom: 12,
+            maxZoom: 18,
+            zoomSnap: 0.5,
+            zoomDelta: 0.5,
+            wheelPxPerZoomLevel: 120
+        });
+
+        // Dark map tiles (CartoDB Dark Matter)
+        L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CONFIG.CARTO_API_KEY}`, {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Pin icon (teardrop SVG) – single shared instance
+        const PIN_ICON = L.divIcon({
+            className: 'pin-marker',
+            html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 42">
+                <path class="pin-stroke" d="M15 1C7.3 1 1 7.3 1 15c0 10.5 14 26 14 26s14-15.5 14-26C29 7.3 22.7 1 15 1z" fill="none" stroke="#ffff00" stroke-width="2"/>
+                <path class="pin-fill" d="M15 1C7.3 1 1 7.3 1 15c0 10.5 14 26 14 26s14-15.5 14-26C29 7.3 22.7 1 15 1z" fill="#ff69b4"/>
+                <circle cx="15" cy="14" r="5" fill="#ffffff" opacity="0.9"/>
+            </svg>`,
+            iconSize: [30, 42],
+            iconAnchor: [15, 42]
+        });
+
+        // Cache image icons per filename so each is created only once
+        const imageIconCache = {};
+        function getImageIcon(image) {
+            if (!imageIconCache[image]) {
+                imageIconCache[image] = L.divIcon({
+                    className: 'image-marker',
+                    html: `<img src="images/${image}" alt=""/>`,
+                    iconSize: [128, 128],
+                    iconAnchor: [64, 64]
+                });
+            }
+            return imageIconCache[image];
+        }
+
+        const IMAGE_ZOOM_THRESHOLD = 16;
+
+        // Sidebar elements
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebarTitle = document.getElementById('sidebar-title');
+        const sidebarViewer = document.getElementById('sidebar-viewer');
+        const sidebarSource = document.getElementById('sidebar-source');
+        const sidebarDescription = document.getElementById('sidebar-description');
+        const mapEl = document.getElementById('map');
+
+        let activeMarkerEl = null;
+
+        function isPortrait() {
+            return window.innerHeight > window.innerWidth;
+        }
+
+        // Return the correct arrow characters for the current orientation
+        function getArrows() {
+            return isPortrait()
+                ? { open: '&#9650;', close: '&#9660;' }   // ▲ ▼
+                : { open: '&#9664;', close: '&#9654;' };   // ◀ ▶
+        }
+
+        function openSidebar(loc) {
+            // Set title
+            sidebarTitle.textContent = loc.title;
+
+            // Set 3D viewer or placeholder
+            if (loc.sketchfabId) {
+                sidebarViewer.innerHTML = `<iframe title="${loc.title}" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking" src="https://sketchfab.com/models/${loc.sketchfabId}/embed"></iframe>`;
+            } else {
+                sidebarViewer.innerHTML = `<div class="no-model">No 3D model available</div>`;
+            }
+
+            // Set source (you can customise per location)
+            sidebarSource.textContent = loc.source || '';
+
+            // Set description (supports HTML line breaks)
+            sidebarDescription.innerHTML = loc.description;
+
+            // Open sidebar – smoothly keep the same visual center
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            sidebar.classList.add('open');
+            sidebarToggle.classList.add('open', 'visible');
+            sidebarToggle.innerHTML = getArrows().open;
+            mapEl.classList.add('sidebar-open');
+            smoothInvalidate(center, zoom);
+        }
+
+        function closeSidebar() {
+            // Capture center before closing
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+
+            sidebar.classList.remove('open');
+            sidebarToggle.classList.remove('open', 'visible');
+            mapEl.classList.remove('sidebar-open');
+
+            // Remove active state from marker
+            if (activeMarkerEl) {
+                activeMarkerEl.classList.remove('active');
+                activeMarkerEl = null;
+            }
+            smoothInvalidate(center, zoom);
+        }
+
+        // Continuously invalidate map size during the CSS transition
+        // so the center stays locked and the view lerps smoothly
+        function smoothInvalidate(center, zoom) {
+            const duration = 350;
+            const start = performance.now();
+            function tick() {
+                map.invalidateSize({ animate: false });
+                map.setView(center, zoom, { animate: false });
+                if (performance.now() - start < duration) {
+                    requestAnimationFrame(tick);
+                }
+            }
+            requestAnimationFrame(tick);
+        }
+
+        sidebarToggle.addEventListener('click', () => {
+            if (sidebar.classList.contains('open')) {
+                closeSidebar();
+            }
+        });
+
+        // Update toggle arrow and retain center on orientation change
+        window.addEventListener('resize', () => {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            const arrows = getArrows();
+            sidebarToggle.innerHTML = sidebar.classList.contains('open')
+                ? arrows.open : arrows.close;
+            map.invalidateSize({ animate: false });
+            map.setView(center, zoom, { animate: false });
+        });
+
+        // Add markers to the map (locations loaded from locations.js)
+        const markers = [];
+        const connectorLines = [];
+        let lastMode = 'pin';
+        // Store stable lat/lng offsets so positions don't jump between zoom levels
+        const markerOffsets = new Map(); // index -> L.LatLng
+
+        locations.forEach((loc, idx) => {
+            const marker = L.marker([loc.lat, loc.lng], { icon: PIN_ICON }).addTo(map);
+            markers.push({ marker, loc, idx });
+
+            marker.on('click', () => {
+                if (activeMarkerEl) activeMarkerEl.classList.remove('active');
+                activeMarkerEl = marker.getElement();
+                if (activeMarkerEl) activeMarkerEl.classList.add('active');
+                openSidebar(loc);
+            });
+        });
+
+        // Union-Find to group overlapping markers
+        function findGroups(entries, threshold) {
+            const n = entries.length;
+            const parent = Array.from({ length: n }, (_, i) => i);
+            function find(x) {
+                while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+                return x;
+            }
+            function union(a, b) { parent[find(a)] = find(b); }
+
+            const tSq = threshold * threshold;
+            for (let i = 0; i < n; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    const dx = entries[i].px.x - entries[j].px.x;
+                    const dy = entries[i].px.y - entries[j].px.y;
+                    if (dx * dx + dy * dy < tSq) union(i, j);
+                }
+            }
+
+            const groups = {};
+            for (let i = 0; i < n; i++) {
+                const root = find(i);
+                (groups[root] || (groups[root] = [])).push(i);
+            }
+            return Object.values(groups);
+        }
+
+        function clearConnectors() {
+            for (let i = connectorLines.length - 1; i >= 0; i--) {
+                map.removeLayer(connectorLines[i]);
+            }
+            connectorLines.length = 0;
+        }
+
+        // Enable smooth CSS transitions on marker elements
+        function enableSmoothMove() {
+            markers.forEach(({ marker }) => {
+                const el = marker.getElement();
+                if (el) el.classList.add('smooth-move');
+            });
+        }
+        function disableSmoothMove() {
+            markers.forEach(({ marker }) => {
+                const el = marker.getElement();
+                if (el) el.classList.remove('smooth-move');
+            });
+        }
+
+        // Calculate overlap groups and store offsets as lat/lng deltas
+        function calculateOffsets() {
+            markerOffsets.clear();
+
+            const imageEntries = [];
+            markers.forEach((entry) => {
+                if (entry.loc.image) {
+                    const px = map.latLngToContainerPoint([entry.loc.lat, entry.loc.lng]);
+                    imageEntries.push({ ...entry, px });
+                }
+            });
+
+            const groups = findGroups(imageEntries, 140);
+
+            groups.forEach(group => {
+                if (group.length <= 1) return;
+
+                let cx = 0, cy = 0;
+                for (let k = 0; k < group.length; k++) {
+                    cx += imageEntries[group[k]].px.x;
+                    cy += imageEntries[group[k]].px.y;
+                }
+                cx /= group.length;
+                cy /= group.length;
+
+                const radius = 80 + 30 * group.length;
+                for (let k = 0; k < group.length; k++) {
+                    const angle = (2 * Math.PI * k / group.length) - Math.PI / 2;
+                    const offsetLatLng = map.containerPointToLatLng(
+                        L.point(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle))
+                    );
+                    const { loc, idx } = imageEntries[group[k]];
+                    // Store as delta so it scales naturally with zoom
+                    markerOffsets.set(idx, {
+                        dLat: offsetLatLng.lat - loc.lat,
+                        dLng: offsetLatLng.lng - loc.lng
+                    });
+                }
+            });
+        }
+
+        // Apply stored offsets and draw connectors
+        function applyOffsets() {
+            clearConnectors();
+            markers.forEach(({ marker, loc, idx }) => {
+                const offset = markerOffsets.get(idx);
+                if (offset) {
+                    const pos = L.latLng(loc.lat + offset.dLat, loc.lng + offset.dLng);
+                    marker.setLatLng(pos);
+                    connectorLines.push(
+                        L.polyline([[loc.lat, loc.lng], pos],
+                            { color: '#ff69b4', weight: 2, opacity: 0.6, dashArray: '6 4', interactive: false }
+                        ).addTo(map)
+                    );
+                } else {
+                    marker.setLatLng([loc.lat, loc.lng]);
+                }
+            });
+        }
+
+        function updateMarkers() {
+            const zoom = map.getZoom();
+            const mode = zoom >= IMAGE_ZOOM_THRESHOLD ? 'image' : 'pin';
+            const modeChanged = mode !== lastMode;
+
+            if (mode === 'pin') {
+                if (modeChanged) {
+                    clearConnectors();
+                    markerOffsets.clear();
+                    markers.forEach(({ marker, loc }) => {
+                        marker.setLatLng([loc.lat, loc.lng]);
+                        marker.setIcon(PIN_ICON);
+                    });
+                }
+                lastMode = mode;
+                return;
+            }
+
+            // Image mode
+            if (modeChanged) {
+                // Swap icons
+                markers.forEach(({ marker, loc }) => {
+                    marker.setLatLng([loc.lat, loc.lng]);
+                    marker.setIcon(loc.image ? getImageIcon(loc.image) : PIN_ICON);
+                });
+                // Calculate fresh layout after icons are rendered
+                requestAnimationFrame(() => {
+                    calculateOffsets();
+                    // Enable smooth transitions, then move
+                    enableSmoothMove();
+                    requestAnimationFrame(() => {
+                        applyOffsets();
+                        // Remove transition class after animation completes
+                        setTimeout(disableSmoothMove, 400);
+                    });
+                });
+            } else {
+                // Same mode, recalculate groups (may change with zoom)
+                // Enable smooth move so positions animate
+                enableSmoothMove();
+                calculateOffsets();
+                applyOffsets();
+                setTimeout(disableSmoothMove, 400);
+            }
+
+            lastMode = mode;
+        }
+
+        // Disable smooth-move during zoom animation to avoid fighting Leaflet
+        map.on('zoomstart', disableSmoothMove);
+        map.on('zoomend', updateMarkers);
+
+        // Fit map to show all pins on load (uses original positions)
+        function resetView() {
+            const bounds = L.latLngBounds(locations.map(loc => [loc.lat, loc.lng]));
+            map.fitBounds(bounds, { padding: [40, 40] });
+        }
+
+        resetView();
+
+        // Reset view button
+        document.getElementById('reset-view').addEventListener('click', () => {
+            if (sidebar.classList.contains('open')) {
+                closeSidebar();
+            }
+            resetView();
+        });
+    </script>
+</body>
+</html>
